@@ -13,6 +13,10 @@
       "types": "./declarations/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./resource-factories": {
+      "types": "./declarations/resource-factories.d.ts",
+      "default": "./dist/resource-factories.js"
+    },
     "./*": {
       "types": "./declarations/*.d.ts",
       "default": "./dist/*.js"
@@ -82,7 +86,13 @@
   },
   "peerDependencies": {
     "@apollo/client": "^4.0.0",
+    "ember-resources": "^7.0.0",
     "graphql": "^14.0.0 || ^15.0.0 || ^16.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ember-resources": {
+      "optional": true
+    }
   },
   "ember": {
     "edition": "octane"
