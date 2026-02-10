@@ -22,53 +22,15 @@ pnpm add ember-resources
 npm install ember-resources
 ```
 
-## Template-Only Usage
+## Curried Resource Factories
 
-The primary motivation for resource factories is enabling Apollo queries directly in templates using `{{#let}}`.
+The recommended way to use resource factories in templates is via **curried factories**. Call `createQueryResource` / `createMutationResource` / `createSubscriptionResource` with a GraphQL document to get a reusable resource that can be invoked in templates or with `@use`:
 
-### queryResource in templates
-
-Pass the query document and an options hash directly to `queryResource`:
-
-```gts:notes.gts
-import { gql } from 'glimmer-apollo';
-import { queryResource } from 'glimmer-apollo/resource-factories';
-
-const GET_NOTES = gql`
-  query GetNotes {
-    notes {
-      id
-      title
-      description
-    }
-  }
-`;
-
-<template>
-  {{#let (queryResource GET_NOTES) as |notes|}}
-    {{#if notes.loading}}
-      Loading...
-    {{else if notes.error}}
-      Error!: {{notes.error.message}}
-    {{else}}
-      {{#each notes.data.notes as |note|}}
-        <div>
-          Title: {{note.title}}
-          Description: {{note.description}}
-        </div>
-      {{/each}}
-    {{/if}}
-  {{/let}}
-</template>
-```
-
-### Passing variables with the hash helper
-
-Use `(hash ...)` to pass variables and options:
+### createQueryResource in templates
 
 ```gts:user-profile.gts
 import { gql } from 'glimmer-apollo';
-import { queryResource } from 'glimmer-apollo/resource-factories';
+import { createQueryResource } from 'glimmer-apollo/resource-factories';
 
 const GET_USER = gql`
   query GetUser($id: ID!) {
@@ -80,8 +42,10 @@ const GET_USER = gql`
   }
 `;
 
+const getUser = createQueryResource(GET_USER);
+
 <template>
-  {{#let (queryResource GET_USER (hash variables=(hash id=@userId))) as |user|}}
+  {{#let (getUser (hash variables=(hash id=@userId))) as |user|}}
     {{#if user.loading}}
       Loading...
     {{else if user.error}}
@@ -95,13 +59,13 @@ const GET_USER = gql`
 
 When `@userId` changes, the resource is re-created with the new variables.
 
-### mutationResource in templates
+### createMutationResource in templates
 
 ```gts:create-note.gts
 import Component from '@glimmer/component';
 import { on } from '@ember/modifier';
 import { gql } from 'glimmer-apollo';
-import { mutationResource } from 'glimmer-apollo/resource-factories';
+import { createMutationResource } from 'glimmer-apollo/resource-factories';
 
 const CREATE_NOTE = gql`
   mutation CreateNote($input: NoteInput!) {
@@ -112,26 +76,28 @@ const CREATE_NOTE = gql`
   }
 `;
 
+const createNote = createMutationResource(CREATE_NOTE);
+
 <template>
-  {{#let (mutationResource CREATE_NOTE) as |createNote|}}
-    <button {{on "click" (fn createNote.mutate (hash input=(hash title="New Note")))}}>
+  {{#let (createNote) as |mutation|}}
+    <button {{on "click" (fn mutation.mutate (hash input=(hash title="New Note")))}}>
       Create Note
     </button>
 
-    {{#if createNote.loading}}
+    {{#if mutation.loading}}
       Creating...
-    {{else if createNote.called}}
-      Created: {{createNote.data.createNote.title}}
+    {{else if mutation.called}}
+      Created: {{mutation.data.createNote.title}}
     {{/if}}
   {{/let}}
 </template>
 ```
 
-### subscriptionResource in templates
+### createSubscriptionResource in templates
 
 ```gts:latest-message.gts
 import { gql } from 'glimmer-apollo';
-import { subscriptionResource } from 'glimmer-apollo/resource-factories';
+import { createSubscriptionResource } from 'glimmer-apollo/resource-factories';
 
 const ON_MESSAGE_ADDED = gql`
   subscription OnMessageAdded($channel: String!) {
@@ -142,8 +108,10 @@ const ON_MESSAGE_ADDED = gql`
   }
 `;
 
+const onMessageAdded = createSubscriptionResource(ON_MESSAGE_ADDED);
+
 <template>
-  {{#let (subscriptionResource ON_MESSAGE_ADDED (hash variables=(hash channel="general"))) as |sub|}}
+  {{#let (onMessageAdded (hash variables=(hash channel="general"))) as |sub|}}
     {{#if sub.loading}}
       Connecting...
     {{else if sub.error}}
@@ -157,7 +125,7 @@ const ON_MESSAGE_ADDED = gql`
 
 ## Usage with @use decorator
 
-Resource factories also work with the `@use` decorator from `ember-resources` in class-based components. Pass a thunk function for reactive tracked dependencies:
+Curried resource factories work with the `@use` decorator from `ember-resources` in class-based components. Pass a thunk returning options for reactive tracked dependencies:
 
 ```gts:notes.gts
 import Component from '@glimmer/component';
@@ -166,7 +134,7 @@ import { on } from '@ember/modifier';
 import { action } from '@ember/object';
 import { use } from 'ember-resources';
 import { gql } from 'glimmer-apollo';
-import { queryResource } from 'glimmer-apollo/resource-factories';
+import { createQueryResource } from 'glimmer-apollo/resource-factories';
 
 const GET_NOTES = gql`
   query GetNotes($isArchived: Boolean) {
@@ -178,13 +146,14 @@ const GET_NOTES = gql`
   }
 `;
 
+const getNotes = createQueryResource(GET_NOTES);
+
 export default class Notes extends Component {
   @tracked isArchived = false;
 
-  @use notes = queryResource(() => [
-    GET_NOTES,
-    { variables: { isArchived: this.isArchived } }
-  ]);
+  @use notes = getNotes(() => ({
+    variables: { isArchived: this.isArchived }
+  }));
 
   @action
   toggleIsArchived(): void {
@@ -224,7 +193,7 @@ import { on } from '@ember/modifier';
 import { action } from '@ember/object';
 import { use } from 'ember-resources';
 import { gql } from 'glimmer-apollo';
-import { mutationResource } from 'glimmer-apollo/resource-factories';
+import { createMutationResource } from 'glimmer-apollo/resource-factories';
 
 const CREATE_NOTE = gql`
   mutation CreateNote($input: NoteInput!) {
@@ -236,12 +205,14 @@ const CREATE_NOTE = gql`
   }
 `;
 
+const createNote = createMutationResource(CREATE_NOTE);
+
 export default class CreateNote extends Component {
-  @use createNote = mutationResource(() => [CREATE_NOTE]);
+  @use createNoteMutation = createNote();
 
   @action
   async submit(): Promise<void> {
-    await this.createNote.mutate({
+    await this.createNoteMutation.mutate({
       input: {
         title: 'Title',
         description: 'Description',
@@ -255,18 +226,24 @@ export default class CreateNote extends Component {
       Create Note
     </button>
 
-    {{#if this.createNote.loading}}
+    {{#if this.createNoteMutation.loading}}
       Creating...
-    {{else if this.createNote.error}}
-      Error!: {{this.createNote.error.message}}
-    {{else if this.createNote.called}}
+    {{else if this.createNoteMutation.error}}
+      Error!: {{this.createNoteMutation.error.message}}
+    {{else if this.createNoteMutation.called}}
       <div>
-        id: {{this.createNote.data.createNote.id}}
-        Title: {{this.createNote.data.createNote.title}}
+        id: {{this.createNoteMutation.data.createNote.id}}
+        Title: {{this.createNoteMutation.data.createNote.title}}
       </div>
     {{/if}}
   </template>
 }
+```
+
+You can also use the base `queryResource`/`mutationResource`/`subscriptionResource` directly with `@use` by passing a thunk that returns `[document, options]`:
+
+```ts
+@use notes = queryResource(() => [GET_NOTES, { variables: { isArchived: this.isArchived } }]);
 ```
 
 ## Available features
@@ -293,11 +270,19 @@ All resource factories expose the same properties and methods as their `use*` co
 
 ## Calling conventions
 
-Each factory accepts two calling conventions:
+| Function | Syntax | Use case |
+|----------|--------|----------|
+| `queryResource` | `queryResource(() => [QUERY, options])` | `@use` decorator with tracked reactivity |
+| `createQueryResource` | `const q = createQueryResource(QUERY)` | Curried factory for templates and `@use` |
 
-| Convention | Syntax | Use case |
-|-----------|--------|----------|
-| Direct args | `queryResource(QUERY, options)` | Template invocation with `{{#let}}` |
-| Thunk | `queryResource(() => [QUERY, options])` | `@use` decorator with tracked reactivity |
+Curried factories accept both thunks (for `@use` reactivity) and direct options (for template invocation):
 
-Both use the same underlying Resource classes as `useQuery`/`useMutation`/`useSubscription`.
+```ts
+// @use with thunk — tracks reactive dependencies
+@use query = getUser(() => ({ variables: { id: this.userId } }));
+
+// Template with direct options
+{{#let (getUser (hash variables=(hash id="1"))) as |q|}} ... {{/let}}
+```
+
+All factories use the same underlying Resource classes as `useQuery`/`useMutation`/`useSubscription`.

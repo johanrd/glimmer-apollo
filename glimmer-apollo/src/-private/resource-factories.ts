@@ -123,66 +123,128 @@ function wrapResource<
   });
 }
 
-// queryResource accepts either:
-//   - A thunk: queryResource(() => [QUERY, options])    — for @use decorator
-//   - Direct args: queryResource(QUERY, options)        — for template invocation
 export function queryResource<
   TData = unknown,
   TVariables extends OperationVariables = OperationVariables,
->(
-  thunkOrDoc: (() => QueryPositionalArgs<TData, TVariables>) | DocumentNode,
-  options?: QueryOptions<TData, TVariables>,
-) {
-  const thunk: () => QueryPositionalArgs<TData, TVariables> =
-    typeof thunkOrDoc === 'function'
-      ? thunkOrDoc
-      : () => [thunkOrDoc, options] as QueryPositionalArgs<TData, TVariables>;
-
+>(thunk: () => QueryPositionalArgs<TData, TVariables>) {
   return wrapResource(QueryResource, thunk);
 }
 resourceFactory(queryResource);
 
-// mutationResource accepts either:
-//   - A thunk: mutationResource(() => [MUTATION, options])    — for @use decorator
-//   - Direct args: mutationResource(MUTATION, options)        — for template invocation
 export function mutationResource<
   TData = unknown,
   TVariables extends OperationVariables = OperationVariables,
->(
-  thunkOrDoc: (() => MutationPositionalArgs<TData, TVariables>) | DocumentNode,
-  options?: MutationOptions<TData, TVariables>,
-) {
-  const thunk: () => MutationPositionalArgs<TData, TVariables> =
-    typeof thunkOrDoc === 'function'
-      ? thunkOrDoc
-      : () =>
-          [thunkOrDoc, options] as MutationPositionalArgs<TData, TVariables>;
-
+>(thunk: () => MutationPositionalArgs<TData, TVariables>) {
   return wrapResource(MutationResource, thunk);
 }
 resourceFactory(mutationResource);
 
-// subscriptionResource accepts either:
-//   - A thunk: subscriptionResource(() => [SUB, options])    — for @use decorator
-//   - Direct args: subscriptionResource(SUB, options)        — for template invocation
 export function subscriptionResource<
   TData = unknown,
   TVariables extends OperationVariables = OperationVariables,
->(
-  thunkOrDoc:
-    | (() => SubscriptionPositionalArgs<TData, TVariables>)
-    | DocumentNode,
-  options?: SubscriptionOptions<TData, TVariables>,
-) {
-  const thunk: () => SubscriptionPositionalArgs<TData, TVariables> =
-    typeof thunkOrDoc === 'function'
-      ? thunkOrDoc
-      : () =>
-          [thunkOrDoc, options] as SubscriptionPositionalArgs<
-            TData,
-            TVariables
-          >;
-
+>(thunk: () => SubscriptionPositionalArgs<TData, TVariables>) {
   return wrapResource(SubscriptionResource, thunk);
 }
 resourceFactory(subscriptionResource);
+
+/**
+ * Create a curried query resource factory. Call with a document to get a
+ * reusable resource that accepts options (or a thunk returning options).
+ *
+ * ```ts
+ * const userInfo = createQueryResource<UserInfoQuery, UserInfoQueryVariables>(USER_INFO);
+ *
+ * // In a class with @use:
+ * @use query = userInfo(() => ({ variables: { id: '1' } }));
+ *
+ * // In a template:
+ * {{#let (userInfo (hash variables=(hash id="1"))) as |q|}} ... {{/let}}
+ * ```
+ */
+export function createQueryResource<
+  TData = unknown,
+  TVariables extends OperationVariables = OperationVariables,
+>(document: DocumentNode) {
+  function inner(
+    thunkOrOptions?:
+      | (() => QueryOptions<TData, TVariables> | undefined)
+      | QueryOptions<TData, TVariables>,
+  ) {
+    const optionsThunk =
+      typeof thunkOrOptions === 'function'
+        ? thunkOrOptions
+        : () => thunkOrOptions;
+    return queryResource<TData, TVariables>(() => [document, optionsThunk()]);
+  }
+  resourceFactory(inner);
+  return inner;
+}
+
+/**
+ * Create a curried mutation resource factory. Call with a document to get a
+ * reusable resource that accepts options (or a thunk returning options).
+ *
+ * ```ts
+ * const login = createMutationResource<LoginMutation, LoginMutationVariables>(LOGIN);
+ *
+ * // In a class with @use:
+ * @use mutation = login(() => ({ variables: { username: 'john' } }));
+ * ```
+ */
+export function createMutationResource<
+  TData = unknown,
+  TVariables extends OperationVariables = OperationVariables,
+>(document: DocumentNode) {
+  function inner(
+    thunkOrOptions?:
+      | (() => MutationOptions<TData, TVariables> | undefined)
+      | MutationOptions<TData, TVariables>,
+  ) {
+    const optionsThunk =
+      typeof thunkOrOptions === 'function'
+        ? thunkOrOptions
+        : () => thunkOrOptions;
+    return mutationResource<TData, TVariables>(() => [
+      document,
+      optionsThunk(),
+    ]);
+  }
+  resourceFactory(inner);
+  return inner;
+}
+
+/**
+ * Create a curried subscription resource factory. Call with a document to get a
+ * reusable resource that accepts options (or a thunk returning options).
+ *
+ * ```ts
+ * const onMessage = createSubscriptionResource<OnMessageSubscription, OnMessageSubscriptionVariables>(ON_MESSAGE);
+ *
+ * // In a class with @use:
+ * @use sub = onMessage(() => ({ variables: { channel: 'general' } }));
+ *
+ * // In a template:
+ * {{#let (onMessage (hash variables=(hash channel="general"))) as |s|}} ... {{/let}}
+ * ```
+ */
+export function createSubscriptionResource<
+  TData = unknown,
+  TVariables extends OperationVariables = OperationVariables,
+>(document: DocumentNode) {
+  function inner(
+    thunkOrOptions?:
+      | (() => SubscriptionOptions<TData, TVariables> | undefined)
+      | SubscriptionOptions<TData, TVariables>,
+  ) {
+    const optionsThunk =
+      typeof thunkOrOptions === 'function'
+        ? thunkOrOptions
+        : () => thunkOrOptions;
+    return subscriptionResource<TData, TVariables>(() => [
+      document,
+      optionsThunk(),
+    ]);
+  }
+  resourceFactory(inner);
+  return inner;
+}

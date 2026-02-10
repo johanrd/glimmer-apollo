@@ -5,4 +5,7 @@ export {
   queryResource,
   mutationResource,
   subscriptionResource,
+  createQueryResource,
+  createMutationResource,
+  createSubscriptionResource,
 } from './-private/resource-factories.ts';

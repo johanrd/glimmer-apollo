@@ -7,6 +7,9 @@ import {
   queryResource,
   mutationResource,
   subscriptionResource,
+  createQueryResource,
+  createMutationResource,
+  createSubscriptionResource,
 } from 'glimmer-apollo/resource-factories';
 import { use } from 'ember-resources';
 import { setOwner } from '@ember/owner';
@@ -235,28 +238,6 @@ module('queryResource', function (hooks) {
     sandbox.restore();
   });
 
-  test('it fetches the query with direct args (non-thunk)', async function (assert) {
-    const query = use(
-      ctx,
-      queryResource<UserInfoQuery, UserInfoQueryVariables>(USER_INFO, {
-        variables: { id: '1' },
-      })
-    );
-
-    assert.equal(query.current.loading, true);
-    await query.current.settled();
-    assert.equal(query.current.loading, false);
-    assert.equal(query.current.error, undefined);
-    assert.deepEqual(query.current.data, {
-      user: {
-        __typename: 'User',
-        firstName: 'Cathaline',
-        id: '1',
-        lastName: 'McCoy',
-      },
-    });
-  });
-
   test('it uses correct client based on clientId option', async function (assert) {
     class Obj {
       @tracked id = '1';
@@ -343,32 +324,6 @@ module('mutationResource', function (hooks) {
     assert.equal(mutation.current.loading, false);
     assert.equal(mutation.current.called, true);
     assert.equal(mutation.current.error, undefined);
-    assert.deepEqual(mutation.current.data, {
-      login: {
-        __typename: 'User',
-        firstName: 'Joth',
-        id: '2',
-        lastName: 'Maverick',
-      },
-    });
-  });
-
-  test('it executes the mutation with direct args (non-thunk)', async function (assert) {
-    const mutation = use(
-      ctx,
-      mutationResource<LoginMutation, LoginMutationVariables>(LOGIN, {
-        variables: { username: 'john' },
-      })
-    );
-
-    assert.equal(mutation.current.loading, false);
-    assert.equal(mutation.current.called, false);
-
-    mutation.current.mutate();
-    await mutation.current.settled();
-
-    assert.equal(mutation.current.loading, false);
-    assert.equal(mutation.current.called, true);
     assert.deepEqual(mutation.current.data, {
       login: {
         __typename: 'User',
@@ -505,30 +460,6 @@ module('subscriptionResource', function (hooks) {
     });
   });
 
-  test('it fetches the subscription with direct args (non-thunk)', async function (assert) {
-    link.simulateResult(results[0]!);
-
-    const sub = use(
-      ctx,
-      subscriptionResource<
-        OnMessageAddedSubscription,
-        OnMessageAddedSubscriptionVariables
-      >(SUBSCRIPTION, { variables: { channel: '1' } })
-    );
-
-    assert.equal(sub.current.loading, true);
-    await sub.current.settled();
-    assert.equal(sub.current.loading, false);
-    assert.equal(sub.current.error, undefined);
-    assert.deepEqual(sub.current.data, {
-      messageAdded: {
-        __typename: 'Message',
-        id: '0',
-        message: 'Hey There!',
-      },
-    });
-  });
-
   test('it re-subscribes when tracked args change', async function (assert) {
     link.simulateResult(results[0]!);
 
@@ -566,4 +497,203 @@ module('subscriptionResource', function (hooks) {
   // Note: destroy/cleanup test for subscriptionResource is in the
   // integration test suite where the rendering lifecycle properly
   // manages ember-resources cleanup via the destroyable tree.
+});
+
+// Curried resource factory tests
+
+const userInfo = createQueryResource<UserInfoQuery, UserInfoQueryVariables>(
+  USER_INFO
+);
+
+module('createQueryResource', function (hooks) {
+  let ctx = {};
+  const owner: Owner = {} as Owner;
+
+  const link = new HttpLink({
+    uri: '/graphql',
+  });
+
+  const client = new ApolloClient({
+    cache: new InMemoryCache(),
+    link,
+  });
+
+  hooks.beforeEach(() => {
+    ctx = {};
+    setOwner(ctx, owner);
+    setClient(ctx, client);
+  });
+
+  hooks.afterEach(() => {
+    destroy(ctx);
+  });
+
+  test('it fetches the query with thunk options', async function (assert) {
+    const query = use(
+      ctx,
+      userInfo(() => ({ variables: { id: '1' } }))
+    );
+
+    assert.equal(query.current.loading, true);
+    await query.current.settled();
+    assert.equal(query.current.loading, false);
+    assert.equal(query.current.error, undefined);
+    assert.deepEqual(query.current.data, {
+      user: {
+        __typename: 'User',
+        firstName: 'Cathaline',
+        id: '1',
+        lastName: 'McCoy',
+      },
+    });
+  });
+
+  test('it fetches the query with direct options', async function (assert) {
+    const query = use(
+      ctx,
+      userInfo({ variables: { id: '2' } })
+    );
+
+    assert.equal(query.current.loading, true);
+    await query.current.settled();
+    assert.equal(query.current.loading, false);
+    assert.deepEqual(query.current.data, {
+      user: {
+        __typename: 'User',
+        firstName: 'Joth',
+        id: '2',
+        lastName: 'Maverick',
+      },
+    });
+  });
+
+  test('it re-fetches when tracked args change', async function (assert) {
+    class Obj {
+      @tracked id = '1';
+    }
+    const vars = new Obj();
+
+    const query = use(
+      ctx,
+      userInfo(() => ({ variables: { id: vars.id } }))
+    );
+
+    assert.equal(query.current.loading, true);
+    await query.current.promise;
+    assert.equal(query.current.loading, false);
+    assert.equal(query.current.data?.user?.id, '1');
+
+    vars.id = '2';
+    assert.equal(query.current.loading, true);
+    await query.current.promise;
+    assert.equal(query.current.loading, false);
+    assert.equal(query.current.data?.user?.id, '2');
+  });
+});
+
+module('createMutationResource', function (hooks) {
+  let ctx = {};
+  const owner: Owner = {} as Owner;
+
+  const client = new ApolloClient({
+    cache: new InMemoryCache(),
+    link: new HttpLink({ uri: '/graphql' }),
+  });
+
+  const login = createMutationResource<LoginMutation, LoginMutationVariables>(
+    LOGIN
+  );
+
+  hooks.beforeEach(() => {
+    ctx = {};
+    setOwner(ctx, owner);
+    setClient(ctx, client);
+  });
+
+  hooks.afterEach(() => {
+    destroy(ctx);
+  });
+
+  test('it executes the mutation with thunk options', async function (assert) {
+    const mutation = use(
+      ctx,
+      login(() => ({ variables: { username: 'john' } }))
+    );
+
+    assert.equal(mutation.current.loading, false);
+    assert.equal(mutation.current.called, false);
+
+    mutation.current.mutate();
+    assert.equal(mutation.current.loading, true);
+    await mutation.current.settled();
+
+    assert.equal(mutation.current.loading, false);
+    assert.equal(mutation.current.called, true);
+    assert.deepEqual(mutation.current.data, {
+      login: {
+        __typename: 'User',
+        firstName: 'Joth',
+        id: '2',
+        lastName: 'Maverick',
+      },
+    });
+  });
+});
+
+module('createSubscriptionResource', function (hooks) {
+  let ctx = {};
+  const owner: Owner = {} as Owner;
+  let link: MockSubscriptionLink;
+
+  const onMessageAdded = createSubscriptionResource<
+    OnMessageAddedSubscription,
+    OnMessageAddedSubscriptionVariables
+  >(SUBSCRIPTION);
+
+  hooks.beforeEach(() => {
+    link = new MockSubscriptionLink();
+    ctx = {};
+    setOwner(ctx, owner);
+    setClient(
+      ctx,
+      new ApolloClient({
+        cache: new InMemoryCache(),
+        link,
+      })
+    );
+  });
+
+  hooks.afterEach(() => {
+    destroy(ctx);
+  });
+
+  test('it fetches the subscription with thunk options', async function (assert) {
+    link.simulateResult({
+      result: {
+        data: {
+          messageAdded: {
+            __typename: 'Message',
+            id: '0',
+            message: 'Hey There!',
+          },
+        },
+      },
+    });
+
+    const sub = use(
+      ctx,
+      onMessageAdded(() => ({ variables: { channel: '1' } }))
+    );
+
+    assert.equal(sub.current.loading, true);
+    await sub.current.settled();
+    assert.equal(sub.current.loading, false);
+    assert.deepEqual(sub.current.data, {
+      messageAdded: {
+        __typename: 'Message',
+        id: '0',
+        message: 'Hey There!',
+      },
+    });
+  });
 });
