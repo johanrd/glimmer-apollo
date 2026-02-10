@@ -4,20 +4,8 @@ export { tracked } from '@glimmer/tracking';
 import { getOwner as _getOwner } from '@ember/owner';
 export { setOwner } from '@ember/owner';
 export { getValue, createCache } from '@glimmer/tracking/primitives/cache';
-export {
-  isDestroying,
-  isDestroyed,
-  destroy,
-  registerDestructor,
-  associateDestroyableChild,
-} from '@ember/destroyable';
+export { registerDestructor } from '@ember/destroyable';
 export { waitForPromise } from '@ember/test-waiters';
-
-export {
-  invokeHelper,
-  setHelperManager,
-  capabilities as helperCapabilities,
-} from '@ember/helper';
 
 export function getOwner(obj: object): Owner | undefined {
   if (

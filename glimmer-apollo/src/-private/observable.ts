@@ -1,17 +1,14 @@
-import { Resource } from './resource.ts';
 import type {
   ObservableQuery,
   OperationVariables,
   SubscribeToMoreOptions,
   UpdateQueryMapFn,
 } from '@apollo/client';
-import type { TemplateArgs } from './types';
 
-export default class ObservableResource<
+export default class ObservableQueryState<
   TData,
   TVariables extends OperationVariables,
-  Args extends TemplateArgs,
-> extends Resource<Args> {
+> {
   private observable?: ObservableQuery<TData, TVariables>;
 
   protected _setObservable(observable: ObservableQuery<TData, TVariables>) {

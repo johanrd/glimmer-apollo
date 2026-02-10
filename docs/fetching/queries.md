@@ -475,3 +475,21 @@ A function that instructs the query to stop polling after a previous call to `st
 A function that enables you to execute a subscription, usually to subscribe to specific fields that were included in the query.
 
 This function returns another function that you can call to terminate the subscription.
+
+## Resource factories + @use (alternative)
+
+If you use [`ember-resources`](https://github.com/NullVoxPopuli/ember-resources), you can use the `queryResource` factory with the `@use` decorator instead of `useQuery`. This removes the need to pass a context object and is useful for composing custom resource factories.
+
+```ts
+import { use } from 'ember-resources';
+import { queryResource } from 'glimmer-apollo';
+
+export default class Notes extends Component {
+  @use notes = queryResource<GetNotesQuery, GetNotesQueryVariables>(() => [
+    GET_NOTES,
+    { variables: { isArchived: this.isArchived } }
+  ]);
+}
+```
+
+See the [ember-resources documentation](https://ember-resources.pages.dev/) for more on the `@use` decorator and resource patterns.

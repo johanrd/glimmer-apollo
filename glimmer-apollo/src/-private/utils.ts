@@ -1,5 +1,9 @@
 import { getOwner } from '../environment.ts';
-import type { Fastboot } from './types';
+
+export interface Fastboot {
+  isFastBoot: boolean;
+  deferRendering(promise: Promise<unknown>): unknown;
+}
 
 function hasFastBoot(obj: unknown): obj is { FastBoot: unknown } {
   return Object.prototype.hasOwnProperty.call(obj, 'FastBoot');

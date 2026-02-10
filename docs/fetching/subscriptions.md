@@ -404,3 +404,24 @@ const wsLink = new WebSocketLink({
   }
 });
 ```
+
+## Resource factories + @use (alternative)
+
+If you use [`ember-resources`](https://github.com/NullVoxPopuli/ember-resources), you can use the `subscriptionResource` factory with the `@use` decorator instead of `useSubscription`. This removes the need to pass a context object and is useful for composing custom resource factories.
+
+```ts
+import { use } from 'ember-resources';
+import { subscriptionResource } from 'glimmer-apollo';
+
+export default class LatestMessage extends Component {
+  @use latestMessage = subscriptionResource<
+    OnMessageAddedSubscription,
+    OnMessageAddedSubscriptionVariables
+  >(() => [
+    ON_MESSAGED_ADDED,
+    { variables: { channel: this.args.channel } }
+  ]);
+}
+```
+
+See the [ember-resources documentation](https://ember-resources.pages.dev/) for more on the `@use` decorator and resource patterns.
