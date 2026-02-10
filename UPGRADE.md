@@ -144,6 +144,71 @@ In Apollo Client 4, `refetch()` on a query with `fetchPolicy: 'standby'` (i.e. a
 
 In 0.8.x, `#onNextResult` checks for `result.error` in the subscription's `next` callback and routes it to the error handler if present.
 
+## Internal: ember-resources
+
+In 0.8.x, glimmer-apollo uses [`ember-resources`](https://github.com/NullVoxPopuli/ember-resources) as the underlying resource framework. The `useQuery`, `useMutation`, and `useSubscription` APIs are unchanged -- existing code continues to work without modification.
+
+### New peer dependency
+
+`ember-resources` ^7.0.0 is now a required peer dependency:
+
+```bash
+pnpm add ember-resources
+```
+
+### Resource factories (alternative API)
+
+In addition to the existing `useQuery`/`useMutation`/`useSubscription` functions, 0.8.x also exports lower-level resource factories (`queryResource`, `mutationResource`, `subscriptionResource`). These can be used with the [`@use` decorator](https://ember-resources.pages.dev/) from `ember-resources`, which removes the need to pass a context object:
+
+```typescript
+import { use } from 'ember-resources';
+import { queryResource } from 'glimmer-apollo';
+
+export default class Notes extends Component {
+  @use notes = queryResource(() => [GET_NOTES]);
+}
+```
+
+The resource factories are useful for composing custom wrappers:
+
+```typescript
+import { queryResource, type QueryPositionalArgs } from 'glimmer-apollo';
+import type { OperationVariables } from '@apollo/client';
+
+function myCustomQuery<TData, TVariables extends OperationVariables>(
+  args: () => QueryPositionalArgs<TData, TVariables>
+) {
+  return queryResource<TData, TVariables>(() => {
+    const [query, options] = args();
+    return [query, { ...options, fetchPolicy: 'network-only' }];
+  });
+}
+```
+
+### Curried resource factories
+
+For queries/mutations/subscriptions that are used in multiple places, `createQueryResource`, `createMutationResource`, and `createSubscriptionResource` bake the document in once and return a reusable factory:
+
+```typescript
+import { use } from 'ember-resources';
+import { createQueryResource } from 'glimmer-apollo';
+
+const userInfo = createQueryResource<UserInfoQuery, UserInfoQueryVariables>(USER_INFO);
+
+export default class UserProfile extends Component {
+  @use query = userInfo(() => ({ variables: { id: this.args.userId } }));
+}
+```
+
+### Removed type exports
+
+The `UseQuery`, `UseMutation`, and `UseSubscription` helper types have been removed. Use `QueryResource`, `MutationResource`, and `SubscriptionResource` instead:
+
+```diff
+-import type { UseQuery } from 'glimmer-apollo';
++import type { QueryResource } from 'glimmer-apollo';
+```
+
 ## Breaking changes summary
 
 | Change | Reason |
@@ -156,3 +221,5 @@ In 0.8.x, `#onNextResult` checks for `result.error` in the subscription's `next`
 | Query/mutation errors no longer clear `data` | Apollo Client 4 provides error state alongside data; `errorPolicy: 'all'` now works correctly |
 | Templates must check `error` before rendering `data` | `data` persists on error; skipping the check renders stale data silently |
 | Subscription `#onNextResult` checks `result.error` | Routes errors delivered via the `next` callback to the error handler |
+| `ember-resources` ^7.0.0 required as peer dependency | Resource framework used internally; enables `@use` decorator and resource factory APIs |
+| `UseQuery`, `UseMutation`, `UseSubscription` types removed | Use `QueryResource`, `MutationResource`, `SubscriptionResource` instead |

@@ -1,5 +1,6 @@
 import Component from '@glimmer/component';
-import { useQuery, useMutation, gql } from 'glimmer-apollo';
+import { queryResource, mutationResource, gql } from 'glimmer-apollo';
+import { use } from 'ember-resources';
 import { on } from '@ember/modifier';
 import type {
   UserInfoQuery,
@@ -27,7 +28,7 @@ const LOGIN = gql`
 `;
 
 export default class PlaygroundExperiment extends Component {
-  userInfo = useQuery<UserInfoQuery, UserInfoQueryVariables>(this, () => [
+  @use userInfo = queryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
     USER_INFO,
     {
       variables: { id: '1-with-delay' },
@@ -36,8 +37,7 @@ export default class PlaygroundExperiment extends Component {
     },
   ]);
 
-  userInfoWithSkip = useQuery<UserInfoQuery, UserInfoQueryVariables>(
-    this,
+  @use userInfoWithSkip = queryResource<UserInfoQuery, UserInfoQueryVariables>(
     () => [
       USER_INFO,
       {
@@ -49,7 +49,7 @@ export default class PlaygroundExperiment extends Component {
     ]
   );
 
-  login = useMutation<LoginMutation, LoginMutationVariables>(this, () => [
+  @use login = mutationResource<LoginMutation, LoginMutationVariables>(() => [
     LOGIN,
     {
       variables: {

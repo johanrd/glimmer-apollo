@@ -172,6 +172,21 @@ export default class Messages extends Component<Signature> {
 }
 ```
 
+### Resource factories + @use (alternative)
+
+If you use [`ember-resources`](https://github.com/NullVoxPopuli/ember-resources), you can also use the lower-level resource factories (`queryResource`, `mutationResource`, `subscriptionResource`) with the `@use` decorator. This removes the need to pass `this` and is useful for composing custom resource factories. See the [ember-resources documentation](https://ember-resources.pages.dev/) for details.
+
+```glimmer-ts
+import { use } from 'ember-resources';
+import { queryResource, gql } from 'glimmer-apollo';
+
+export default class Todos extends Component {
+  @use todos = queryResource(() => [
+    gql`query { todos { id description } }`,
+  ]);
+}
+```
+
 ### setClient(ctx, client[, clientId])
 
 Where `ctx` is an object with owner.

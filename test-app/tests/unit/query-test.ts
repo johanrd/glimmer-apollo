@@ -463,4 +463,48 @@ module('useQuery', function (hooks) {
 
     sandbox.restore();
   });
+
+  test('refetch() on a skipped query permanently un-skips it', async function (assert) {
+    // In Apollo Client 4, refetch() on a standby query uses reobserve
+    // to switch fetchPolicy from 'standby' to 'network-only'. This is
+    // permanent — the query is no longer skipped after refetch().
+    const query = useQuery<UserInfoQuery, UserInfoQueryVariables>(ctx, () => [
+      USER_INFO,
+      {
+        variables: { id: '1' },
+        skip: true,
+      },
+    ]);
+
+    assert.equal(query.loading, false, 'initially not loading (skipped)');
+    assert.equal(query.data, undefined, 'no data while skipped');
+
+    query.refetch();
+    await waitUntil(() => query.data !== undefined);
+
+    assert.equal(query.loading, false, 'loaded after refetch');
+    assert.equal(query.data?.user?.id, '1', 'has data after refetch');
+
+    // Write directly to the cache — if the query is still in standby,
+    // this update would not reach our subscriber.
+    client.cache.writeQuery({
+      query: USER_INFO,
+      variables: { id: '1' },
+      data: {
+        user: {
+          __typename: 'User',
+          id: '1',
+          firstName: 'Updated',
+          lastName: 'McCoy',
+        },
+      },
+    });
+
+    await waitUntil(() => query.data?.user?.firstName === 'Updated');
+    assert.equal(
+      query.data?.user?.firstName,
+      'Updated',
+      'query receives cache updates after refetch (no longer skipped)'
+    );
+  });
 });

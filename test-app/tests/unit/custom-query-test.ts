@@ -2,14 +2,14 @@ import { setOwner } from '@ember/owner';
 import type Owner from '@ember/owner';
 import { destroy } from '@ember/destroyable';
 import { tracked } from '@glimmer/tracking';
+import { use } from 'ember-resources';
 
 import {
   getClient,
   gql,
   type QueryPositionalArgs,
-  type QueryResource,
   setClient,
-  useQuery,
+  queryResource,
 } from 'glimmer-apollo';
 
 import { module, test } from 'qunit';
@@ -28,13 +28,10 @@ import {
   type UserInfoQueryVariables,
 } from '../../app/mocks/handlers';
 
-function useCustomQuery<
+function customQueryResource<
   TData = unknown,
   TVariables extends OperationVariables = OperationVariables,
->(
-  parentDestroyable: object,
-  args: () => QueryPositionalArgs<TData, TVariables>
-): QueryResource<TData, TVariables> {
+>(args: () => QueryPositionalArgs<TData, TVariables>) {
   const customArgs: () => QueryPositionalArgs<TData, TVariables> = function () {
     const passedArgs = args();
     const options = Object.assign(
@@ -47,7 +44,7 @@ function useCustomQuery<
     return [passedArgs[0], options];
   };
 
-  return useQuery<TData, TVariables>(parentDestroyable, customArgs);
+  return queryResource<TData, TVariables>(customArgs);
 }
 
 const USER_INFO = gql`
@@ -60,7 +57,7 @@ const USER_INFO = gql`
   }
 `;
 
-module('useCustomQuery', function (hooks) {
+module('customQueryResource', function (hooks) {
   let ctx = {};
   const owner: Owner = {} as Owner;
 
@@ -82,10 +79,12 @@ module('useCustomQuery', function (hooks) {
   });
 
   test('it fetches the default query', async function (assert) {
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [USER_INFO]
-    );
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
+        USER_INFO,
+      ])
+    ).current;
 
     assert.equal(query.loading, true);
     assert.equal(query.data, undefined);
@@ -103,15 +102,15 @@ module('useCustomQuery', function (hooks) {
   });
 
   test('it fetches the query', async function (assert) {
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: '1' },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.loading, true);
     assert.equal(query.data, undefined);
@@ -134,15 +133,15 @@ module('useCustomQuery', function (hooks) {
     }
     const vars = new Obj();
 
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: vars.id },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.loading, true);
     assert.equal(query.data, undefined);
@@ -159,15 +158,15 @@ module('useCustomQuery', function (hooks) {
   });
 
   test('it returns error', async function (assert) {
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: 'NOT_FOUND' },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.loading, true);
     assert.equal(query.data, undefined);
@@ -180,9 +179,9 @@ module('useCustomQuery', function (hooks) {
 
   test('it calls onComplete', async function (assert) {
     let onCompleteCalled: unknown;
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: '2' },
@@ -190,8 +189,8 @@ module('useCustomQuery', function (hooks) {
             onCompleteCalled = data;
           },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.data, undefined);
     await query.settled();
@@ -211,9 +210,9 @@ module('useCustomQuery', function (hooks) {
 
   test('it calls onError', async function (assert) {
     let onErrorCalled: ErrorLike | undefined;
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: 'NOT_FOUND' },
@@ -221,8 +220,8 @@ module('useCustomQuery', function (hooks) {
             onErrorCalled = error;
           },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.error, undefined);
     await query.settled();
@@ -235,9 +234,9 @@ module('useCustomQuery', function (hooks) {
   test('it returns error with data', async function (assert) {
     let onCompleteCalled: unknown;
     let onErrorCalled: ErrorLike | undefined;
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: '2-with-error' },
@@ -249,8 +248,8 @@ module('useCustomQuery', function (hooks) {
             onErrorCalled = error;
           },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.data, undefined);
     await query.settled();
@@ -285,15 +284,15 @@ module('useCustomQuery', function (hooks) {
     const client = getClient(ctx);
 
     const watchQuery = sandbox.spy(client, 'watchQuery');
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: vars.id },
         },
-      ]
-    );
+      ])
+    ).current;
 
     assert.equal(query.data, undefined);
     await query.settled();
@@ -324,16 +323,16 @@ module('useCustomQuery', function (hooks) {
     const defaultClientWatchQuery = sandbox.spy(defaultClient, 'watchQuery');
     const customClientWatchQuery = sandbox.spy(customClient, 'watchQuery');
 
-    const query = useCustomQuery<UserInfoQuery, UserInfoQueryVariables>(
+    const query = use(
       ctx,
-      () => [
+      customQueryResource<UserInfoQuery, UserInfoQueryVariables>(() => [
         USER_INFO,
         {
           variables: { id: vars.id },
           clientId: 'custom-client',
         },
-      ]
-    );
+      ])
+    ).current;
 
     await query.settled();
     assert.ok(

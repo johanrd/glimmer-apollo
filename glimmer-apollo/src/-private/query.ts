@@ -1,14 +1,16 @@
 import { NetworkStatus } from '@apollo/client';
 import { equal } from '@wry/equality';
+import { resource, resourceFactory } from 'ember-resources';
 
 import {
-  isDestroyed,
-  isDestroying,
   tracked,
   waitForPromise,
+  setOwner,
+  createCache,
+  getValue,
 } from '../environment.ts';
 import { getClient } from './client.ts';
-import ObservableResource from './observable.ts';
+import ObservableQueryState from './observable.ts';
 import { createPromise, getFastboot, settled } from './utils.ts';
 
 import type {
@@ -20,7 +22,6 @@ import type {
   ObservableQuery,
 } from '@apollo/client';
 import type { Subscription } from 'rxjs';
-import type { TemplateArgs } from './types';
 
 export type QueryOptions<TData, TVariables extends OperationVariables> = Omit<
   ApolloClient.WatchQueryOptions<TData, TVariables>,
@@ -38,30 +39,31 @@ export type QueryPositionalArgs<
   TVariables extends OperationVariables = OperationVariables,
 > = [DocumentNode, QueryOptions<TData, TVariables>?];
 
-export class QueryResource<
+export class QueryState<
   TData,
   TVariables extends OperationVariables = OperationVariables,
-> extends ObservableResource<
-  TData,
-  TVariables,
-  TemplateArgs<QueryPositionalArgs<TData, TVariables>>
-> {
+> extends ObservableQueryState<TData, TVariables> {
   @tracked loading = false;
   @tracked error?: ErrorLike;
   @tracked data: MaybeMasked<TData> | undefined;
   @tracked networkStatus: NetworkStatus = NetworkStatus.loading;
   @tracked promise!: Promise<void>;
 
+  #stopped = false;
   #subscription?: Subscription;
-  #previousPositionalArgs: typeof this.args.positional | undefined;
-
   #firstPromiseReject: (() => unknown) | undefined;
+  #currentOptions?: QueryOptions<TData, TVariables>;
 
-  /** @internal */
-  setup(): void {
-    this.#previousPositionalArgs = this.args.positional;
-    const [query, options = {} as QueryOptions<TData, TVariables>] =
-      this.args.positional;
+  /** @internal – do not call directly; used by the resource factory. */
+  _start(
+    query: DocumentNode,
+    options: QueryOptions<TData, TVariables> = {} as QueryOptions<
+      TData,
+      TVariables
+    >,
+  ): void {
+    this.#stopped = false;
+    this.#currentOptions = options;
     const client = getClient(this, options.clientId);
 
     const fastboot = getFastboot(this);
@@ -82,6 +84,7 @@ export class QueryResource<
     const fetchPolicy = isSkipped ? 'standby' : options.fetchPolicy;
 
     if (isSkipped || fetchPolicy === 'standby') {
+      this.loading = false;
       if (firstResolve) {
         firstResolve();
         firstResolve = undefined;
@@ -97,20 +100,13 @@ export class QueryResource<
       // Apollo Client 4 defaults notifyOnNetworkStatusChange to true.
       // We preserve the AC3 default to avoid emitting intermediate loading
       // states during refetch/fetchMore, which would cause consumers relying
-      // on synchronous loading checks to see unexpected flickers. Flipping
-      // to the default true may be the correct approach, but that will require
-      // a breaking change that would require consumers to handle NetworkStatus
-      // transitions differently (e.g. refetch, fetchMore, poll).
+      // on synchronous loading checks to see unexpected flickers.
       notifyOnNetworkStatusChange: options.notifyOnNetworkStatusChange ?? false,
     } as ApolloClient.WatchQueryOptions<TData, TVariables>);
 
     this._setObservable(observable);
 
     // Apollo Client 4: errors arrive via result.error, not the error callback.
-    // With notifyOnNetworkStatusChange defaulting to true in AC4, the observable
-    // emits an initial { loading: true } before data arrives. Gate on
-    // !result.loading so the promise resolves only after the first real result,
-    // keeping route model hooks and await patterns working correctly.
     this.#subscription = observable.subscribe((result) => {
       this.#onComplete(result);
       if (firstResolve && !result.loading) {
@@ -129,16 +125,9 @@ export class QueryResource<
     }
   }
 
-  /** @internal */
-  update(): void {
-    if (!equal(this.#previousPositionalArgs, this.args.positional)) {
-      this.teardown();
-      this.setup();
-    }
-  }
-
-  /** @internal */
-  teardown(): void {
+  /** @internal – do not call directly; used by the resource factory. */
+  _stop(): void {
+    this.#stopped = true;
     if (this.#subscription) {
       this.#subscription.unsubscribe();
     }
@@ -148,18 +137,14 @@ export class QueryResource<
     }
   }
 
-  settled(): Promise<void> {
-    return settled(this.promise);
-  }
+  // Arrow property so `this` is preserved when accessed through the Proxy.
+  settled = (): Promise<void> => settled(this.promise);
 
   #onComplete(result: ObservableQuery.Result<MaybeMasked<TData>>): void {
     const { loading, error, data, networkStatus } = result;
 
     this.loading = loading;
-    // Cast: Apollo Client 4's result type includes DeepPartial<TData> to
-    // account for returnPartialData. We expose the stricter TData since
-    // consumers who opt into returnPartialData already expect partial shapes.
-    // If AC4 tightens this typing in a future version, revisit this cast.
+    // AC4 types data as DeepPartial<TData> for returnPartialData; cast to stricter TData.
     this.data = data as MaybeMasked<TData> | undefined;
     this.networkStatus = networkStatus;
     this.error = error;
@@ -175,13 +160,11 @@ export class QueryResource<
   }
 
   #handleOnCompleteOrOnError(): void {
-    // We want to avoid calling the callbacks when this is destroyed.
-    // If the resource is destroyed, the callback context might not be defined anymore.
-    if (isDestroyed(this) || isDestroying(this)) {
+    if (this.#stopped) {
       return;
     }
 
-    const [, options] = this.args.positional;
+    const options = this.#currentOptions;
     const { onComplete, onError } = options || {};
     const { data, error } = this;
 
@@ -191,4 +174,82 @@ export class QueryResource<
       onError(error);
     }
   }
+}
+
+export type { QueryState as QueryResource };
+
+/**
+ * Create a query resource. Can be used with ember-resources' @use decorator
+ * or in templates via resourceFactory.
+ */
+export function queryResource<
+  TData = unknown,
+  TVariables extends OperationVariables = OperationVariables,
+>(thunk: () => QueryPositionalArgs<TData, TVariables>) {
+  return resource(({ on, owner }) => {
+    let previousArgs: QueryPositionalArgs<TData, TVariables> | undefined;
+    const state = new QueryState<TData, TVariables>();
+    setOwner(state, owner);
+
+    const updateCache = createCache(() => {
+      const positionalArgs = thunk();
+      if (!equal(previousArgs, positionalArgs)) {
+        if (previousArgs) state._stop();
+        previousArgs = positionalArgs;
+        const [query, options] = positionalArgs;
+        state._start(query, options);
+      }
+    });
+
+    getValue(updateCache);
+
+    on.cleanup(() => state._stop());
+
+    return new Proxy(state, {
+      get(target, key): unknown {
+        getValue(updateCache);
+        return Reflect.get(target, key, target);
+      },
+      ownKeys(target): (string | symbol)[] {
+        return Reflect.ownKeys(target);
+      },
+      getOwnPropertyDescriptor(target, key): PropertyDescriptor | undefined {
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+  });
+}
+resourceFactory(queryResource);
+
+/**
+ * Create a curried query resource factory. Call with a document to get a
+ * reusable resource that accepts options (or a thunk returning options).
+ *
+ * ```ts
+ * const userInfo = createQueryResource<UserInfoQuery, UserInfoQueryVariables>(USER_INFO);
+ *
+ * // In a class with @use:
+ * @use query = userInfo(() => ({ variables: { id: '1' } }));
+ *
+ * // In a template:
+ * {{#let (userInfo (hash variables=(hash id="1"))) as |q|}} ... {{/let}}
+ * ```
+ */
+export function createQueryResource<
+  TData = unknown,
+  TVariables extends OperationVariables = OperationVariables,
+>(document: DocumentNode) {
+  function inner(
+    thunkOrOptions?:
+      | (() => QueryOptions<TData, TVariables> | undefined)
+      | QueryOptions<TData, TVariables>,
+  ) {
+    const optionsThunk =
+      typeof thunkOrOptions === 'function'
+        ? thunkOrOptions
+        : () => thunkOrOptions;
+    return queryResource<TData, TVariables>(() => [document, optionsThunk()]);
+  }
+  resourceFactory(inner);
+  return inner;
 }
