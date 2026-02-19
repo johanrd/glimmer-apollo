@@ -23,7 +23,8 @@ type Maybe<T> = T | undefined | null;
 export type MutationOptions<
   TData,
   TVariables extends OperationVariables,
-> = Omit<ApolloMutationOptions<TData, TVariables>, 'mutation'> & {
+> = Omit<ApolloMutationOptions<TData, TVariables>, 'mutation' | 'variables'> & {
+  variables?: TVariables;
   clientId?: string;
   onComplete?: (data: Maybe<MaybeMasked<TData>>) => void;
   onError?: (error: ErrorLike) => void;
