@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, qunit/no-identical-names */
 import { module, test } from 'qunit';
 import { useMutation } from 'glimmer-apollo';
 import type { MutationResource } from 'glimmer-apollo';
@@ -31,10 +30,9 @@ function _typeAssertions() {
   // Subsumes proapi-webapp patch: variables at the options site is optional
   // even when TVariables has required fields. The mutation has required
   // `username`, and useMutation must compile with no options provided.
-  const noOpts = useMutation<LoginMutation, LoginMutationVariables>(
-    ctx,
-    () => [LOGIN],
-  );
+  const noOpts = useMutation<LoginMutation, LoginMutationVariables>(ctx, () => [
+    LOGIN,
+  ]);
   expectTypeOf(noOpts).toEqualTypeOf<
     MutationResource<LoginMutation, LoginMutationVariables>
   >();
@@ -44,7 +42,7 @@ function _typeAssertions() {
     useMutation as unknown as useMutation.Signatures.Classic;
   const mc = useMutationClassic<LoginMutation, LoginMutationVariables>(
     ctx,
-    () => [LOGIN, { variables: { username: 'a' } }],
+    () => [LOGIN, { variables: { username: 'a' } }]
   );
   expectTypeOf(mc).toEqualTypeOf<
     MutationResource<LoginMutation, LoginMutationVariables>

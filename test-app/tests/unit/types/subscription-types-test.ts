@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, qunit/no-identical-names */
 import { module, test } from 'qunit';
 import { useSubscription } from 'glimmer-apollo';
 import type { SubscriptionResource } from 'glimmer-apollo';

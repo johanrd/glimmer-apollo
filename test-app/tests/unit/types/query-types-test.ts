@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars, qunit/no-identical-names */
 import { module, test } from 'qunit';
 import { useQuery } from 'glimmer-apollo';
 import type { QueryResource } from 'glimmer-apollo';
@@ -36,10 +35,10 @@ function _typeAssertions() {
 
   // Classic: explicit generics still type-check.
   const useQueryClassic = useQuery as unknown as useQuery.Signatures.Classic;
-  const qc = useQueryClassic<UserInfoQuery, UserInfoQueryVariables>(
-    ctx,
-    () => [USER_INFO, { variables: { id: '1' } }],
-  );
+  const qc = useQueryClassic<UserInfoQuery, UserInfoQueryVariables>(ctx, () => [
+    USER_INFO,
+    { variables: { id: '1' } },
+  ]);
   expectTypeOf(qc).toEqualTypeOf<
     QueryResource<UserInfoQuery, UserInfoQueryVariables>
   >();
