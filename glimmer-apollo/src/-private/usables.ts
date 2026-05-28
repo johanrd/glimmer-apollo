@@ -37,7 +37,10 @@ export namespace useQuery {
       ): QueryResource<TData, TVariables>;
     }
     export interface Modern {
-      <TData, TVariables extends OperationVariables>(
+      <
+        TData = unknown,
+        TVariables extends OperationVariables = OperationVariables,
+      >(
         parentDestroyable: object,
         args: () => [
           TypedDocumentNode<TData, TVariables>,
@@ -76,7 +79,10 @@ export namespace useMutation {
       ): MutationResource<TData, TVariables>;
     }
     export interface Modern {
-      <TData, TVariables extends OperationVariables>(
+      <
+        TData = unknown,
+        TVariables extends OperationVariables = OperationVariables,
+      >(
         parentDestroyable: object,
         args: () => [
           TypedDocumentNode<TData, TVariables>,
