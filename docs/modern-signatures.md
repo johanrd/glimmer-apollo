@@ -2,7 +2,7 @@
 
 Apollo Client 4.2 introduced two parallel hook signature styles, "classic" and "modern", switched globally via a single TypeScript declaration. Glimmer Apollo mirrors Apollo's pattern so you can opt into the same inferred-from-`TypedDocumentNode` ergonomics across `useQuery`, `useMutation`, and `useSubscription`.
 
-Classic is the default. Opting in is purely additive — existing call sites compile unchanged.
+Classic is the default, so existing call sites compile unchanged unless you opt into modern signatures; opt-in migrations are covered below.
 
 > See [Apollo's 4.2 release notes](https://github.com/apollographql/apollo-client/blob/main/CHANGELOG.md) for the upstream announcement.
 
