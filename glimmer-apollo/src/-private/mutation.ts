@@ -25,7 +25,7 @@ export type MutationOptions<
   TData,
   TVariables extends OperationVariables,
 > = Omit<ApolloMutationOptions<TData, TVariables>, 'mutation' | 'variables'> & {
-  variables?: Partial<TVariables>;
+  variables?: TVariables;
   clientId?: string;
   onComplete?: (data: Maybe<MaybeMasked<TData>>) => void;
   onError?: (error: ErrorLike) => void;
@@ -50,7 +50,7 @@ export class MutationResource<
   @tracked promise!: Promise<Maybe<MaybeMasked<TData>>>;
 
   async mutate(
-    variables?: Partial<TVariables>,
+    variables?: TVariables,
     overrideOptions: Omit<
       MutationOptions<TData, TVariables>,
       'variables' | 'mutation'
