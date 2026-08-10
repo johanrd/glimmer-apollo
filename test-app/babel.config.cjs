@@ -16,7 +16,10 @@ module.exports = {
     [
       'babel-plugin-ember-template-compilation',
       {
-        compilerPath: 'ember-source/dist/ember-template-compiler.js',
+        // No compilerPath: babel-plugin-ember-template-compilation auto-detects
+        // by trying 'ember-source/ember-template-compiler/index.js' (ember 7+)
+        // and falling back to 'ember-source/dist/ember-template-compiler.js'
+        // (ember <= 6). Hardcoding either breaks an ember-try scenario.
         enableLegacyModules: [
           'ember-cli-htmlbars',
           'ember-cli-htmlbars-inline-precompile',
