@@ -14,6 +14,7 @@ import { createPromise, getFastboot, settled } from './utils.ts';
 
 import type {
   ApolloClient,
+  DataState,
   DataValue,
   DocumentNode,
   ErrorLike,
@@ -57,7 +58,8 @@ export type QueryPositionalArgs<
 /**
  * A query read with `returnPartialData`: `data` can miss fields, whether it is
  * a cache read before the network answers, a result with `errorPolicy: 'all'`
- * where a field errored, or a cache read after an eviction.
+ * where a field errored, or a cache read after an eviction. `dataState` says
+ * whether the current `data` is `'partial'` or `'complete'`.
  */
 export type PartialQueryResource<
   TData,
@@ -76,6 +78,9 @@ export class QueryResource<
   @tracked loading = false;
   @tracked error?: ErrorLike;
   @tracked data: TResultData | undefined;
+  @tracked dataState: DataState<TData>['dataState'] = 'empty';
+  /** The last `data` before it last changed, as in Apollo's React `useQuery`. Kept across variable changes. */
+  @tracked previousData: TResultData | undefined;
   @tracked networkStatus: NetworkStatus = NetworkStatus.loading;
   @tracked promise!: Promise<void>;
 
@@ -189,12 +194,16 @@ export class QueryResource<
   }
 
   #onComplete(result: ObservableQuery.Result<MaybeMasked<TData>>): void {
-    const { loading, error, data, networkStatus } = result;
+    const { loading, error, data, dataState, networkStatus } = result;
 
+    if (this.data !== undefined && !equal(this.data, data)) {
+      this.previousData = this.data;
+    }
     this.loading = loading;
     // Apollo types every result's data as complete | partial; the overload
     // that built this resource decided which of the two TResultData is.
     this.data = data as TResultData | undefined;
+    this.dataState = dataState;
     this.networkStatus = networkStatus;
     this.error = error;
 

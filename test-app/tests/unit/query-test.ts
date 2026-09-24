@@ -102,6 +102,31 @@ module('useQuery', function (hooks) {
     assert.equal(query.data?.user?.id, '2');
   });
 
+  test('it keeps the previous data when args change', async function (assert) {
+    class Obj {
+      @tracked id = '1';
+    }
+    const vars = new Obj();
+
+    const query = useQuery<UserInfoQuery, UserInfoQueryVariables>(ctx, () => [
+      USER_INFO,
+      {
+        variables: { id: vars.id },
+      },
+    ]);
+
+    assert.equal(query.dataState, 'empty');
+    await query.promise;
+    assert.equal(query.dataState, 'complete');
+    assert.equal(query.previousData, undefined);
+
+    vars.id = '2';
+    assert.equal(query.loading, true);
+    await query.promise;
+    assert.equal(query.data?.user?.id, '2');
+    assert.equal(query.previousData?.user?.id, '1');
+  });
+
   test('it reports partial data from the cache, then complete', async function (assert) {
     const partialClient = new ApolloClient({
       cache: new InMemoryCache(),
@@ -131,9 +156,10 @@ module('useQuery', function (hooks) {
       },
     ]);
 
+    assert.equal(query.dataState, 'partial');
     assert.equal(query.data?.user?.firstName, 'Cathaline');
     assert.equal(query.data?.user?.lastName, undefined);
-    await query.promise;
+    await waitUntil(() => query.dataState === 'complete');
     assert.equal(query.data?.user?.lastName, 'McCoy');
     assert.deepEqual(lastNames, [undefined, 'McCoy']);
   });

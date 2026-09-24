@@ -54,6 +54,9 @@ function _typeAssertions() {
   expectTypeOf(qp.data).toEqualTypeOf<
     DataValue.Partial<UserInfoQuery> | undefined
   >();
+  expectTypeOf(qp.previousData).toEqualTypeOf<
+    DataValue.Partial<UserInfoQuery> | undefined
+  >();
   if (qp.data?.user) {
     // @ts-expect-error - a field of partial data may be missing
     takesString(qp.data.user.firstName);

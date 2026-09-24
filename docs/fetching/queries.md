@@ -234,7 +234,7 @@ notes = useQuery(this, () => [GET_NOTES, { clientId: 'my-custom-client' }]);
 
 ### `returnPartialData`
 
-With `returnPartialData: true`, Apollo Client reads whatever the cache already holds for the query while the network request is in flight, so `data` can miss fields. `useQuery` then returns a `PartialQueryResource`: `data` and the `onComplete` argument are typed as `DataValue.Partial<TData>` from `@apollo/client`.
+With `returnPartialData: true`, Apollo Client reads whatever the cache already holds for the query while the network request is in flight, so `data` can miss fields. `useQuery` then returns a `PartialQueryResource`: `data` and the `onComplete` argument are typed as `DataValue.Partial<TData>` from `@apollo/client`, and `dataState` reports `'partial'` until the result is `'complete'`.
 
 ```ts
 notes = useQuery(this, () => [GET_NOTES, { returnPartialData: true }]);
