@@ -1,6 +1,7 @@
 import ApplicationInstance from '@ember/application/instance';
 import type Owner from '@ember/owner';
 export { tracked } from '@glimmer/tracking';
+export { untrack } from '@glimmer/validator';
 import { getOwner as _getOwner } from '@ember/owner';
 export { setOwner } from '@ember/owner';
 export { getValue, createCache } from '@glimmer/tracking/primitives/cache';

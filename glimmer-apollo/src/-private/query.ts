@@ -6,6 +6,7 @@ import {
   isDestroying,
   next,
   tracked,
+  untrack,
   waitForPromise,
 } from '../environment.ts';
 import { getClient } from './client.ts';
@@ -97,26 +98,6 @@ export class QueryResource<
    */
   #deferredCallbacks: (() => void)[] = [];
 
-  /**
-   * Skips a write of the current value, which would invalidate every reader of
-   * that field for nothing. Compares against a plain copy because reading the
-   * tracked field here would consume it, and writing a consumed field during
-   * render trips Ember's backtracking assertion.
-   */
-  #written: Partial<Pick<this, 'loading' | 'data' | 'networkStatus' | 'error'>> =
-    {};
-
-  #write<Field extends 'loading' | 'data' | 'networkStatus' | 'error'>(
-    field: Field,
-    value: this[Field],
-  ): void {
-    if (field in this.#written && Object.is(this.#written[field], value)) {
-      return;
-    }
-    this.#written[field] = value;
-    this[field] = value;
-  }
-
   /** @internal */
   setup(): void {
     this.#previousPositionalArgs = this.args.positional;
@@ -147,7 +128,7 @@ export class QueryResource<
         firstResolve = undefined;
       }
     } else {
-      this.#write('loading', true);
+      this.loading = true;
     }
 
     const observable = client.watchQuery<TData, TVariables>({
@@ -217,12 +198,16 @@ export class QueryResource<
   #onComplete(result: ObservableQuery.Result<MaybeMasked<TData>>): void {
     const { loading, error, data, networkStatus } = result;
 
-    this.#write('loading', loading);
-    // Apollo types every result's data as complete | partial; the overload
-    // that built this resource decided which of the two TResultData is.
-    this.#write('data', data as TResultData | undefined);
-    this.#write('networkStatus', networkStatus);
-    this.#write('error', error);
+    // A write invalidates every reader even when the value is the same. Untracked,
+    // because writing a field read in this computation trips the backtracking assertion.
+    untrack(() => {
+      if (this.loading !== loading) this.loading = loading;
+      // Apollo types every result's data as complete | partial; the overload
+      // that built this resource decided which of the two TResultData is.
+      if (this.data !== data) this.data = data as TResultData | undefined;
+      if (this.networkStatus !== networkStatus) this.networkStatus = networkStatus;
+      if (this.error !== error) this.error = error;
+    });
 
     if (error) {
       if (typeof this.#firstPromiseReject === 'function') {
