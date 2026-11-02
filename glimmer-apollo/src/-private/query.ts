@@ -6,6 +6,7 @@ import {
   isDestroying,
   next,
   tracked,
+  untrack,
   waitForPromise,
 } from '../environment.ts';
 import { getClient } from './client.ts';
@@ -197,12 +198,16 @@ export class QueryResource<
   #onComplete(result: ObservableQuery.Result<MaybeMasked<TData>>): void {
     const { loading, error, data, networkStatus } = result;
 
-    this.loading = loading;
-    // Apollo types every result's data as complete | partial; the overload
-    // that built this resource decided which of the two TResultData is.
-    this.data = data as TResultData | undefined;
-    this.networkStatus = networkStatus;
-    this.error = error;
+    // A write invalidates every reader even when the value is the same. Untracked,
+    // because writing a field read in this computation trips the backtracking assertion.
+    untrack(() => {
+      if (this.loading !== loading) this.loading = loading;
+      // Apollo types every result's data as complete | partial; the overload
+      // that built this resource decided which of the two TResultData is.
+      if (this.data !== data) this.data = data as TResultData | undefined;
+      if (this.networkStatus !== networkStatus) this.networkStatus = networkStatus;
+      if (this.error !== error) this.error = error;
+    });
 
     if (error) {
       if (typeof this.#firstPromiseReject === 'function') {
