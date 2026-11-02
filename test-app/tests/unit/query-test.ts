@@ -2,6 +2,7 @@
 import { module, test } from 'qunit';
 import { destroy } from '@ember/destroyable';
 import { tracked } from '@glimmer/tracking';
+import { createCache, getValue } from '@glimmer/tracking/primitives/cache';
 import { setClient, getClient, useQuery, gql } from 'glimmer-apollo';
 import { setOwner } from '@ember/owner';
 import type Owner from '@ember/owner';
@@ -523,6 +524,31 @@ module('useQuery', function (hooks) {
       'loading should be false after promise resolves'
     );
     assert.ok(query.data?.user, 'data should be present');
+  });
+
+  test('a repeated result does not invalidate what reads the query', async function (assert) {
+    const query = useQuery<UserInfoQuery, UserInfoQueryVariables>(ctx, () => [
+      USER_INFO,
+      {
+        variables: { id: '1' },
+      },
+    ]);
+    await query.promise;
+
+    const dataBefore = query.data;
+    let readCount = 0;
+    const reader = createCache(() => {
+      readCount++;
+      return [query.loading, query.data, query.networkStatus, query.error];
+    });
+    getValue(reader);
+    assert.equal(readCount, 1);
+
+    await query.refetch();
+    getValue(reader);
+
+    assert.deepEqual(query.data, dataBefore, 'the result is the same');
+    assert.equal(readCount, 1, 'the reader did not run again');
   });
 
   test('refetch() should work even when skip is true.', async function (assert) {
